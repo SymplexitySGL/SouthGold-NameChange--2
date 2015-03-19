@@ -44,7 +44,7 @@ BEGIN
 	DROP TABLE [GFL_Backup].dbo.DB_Search
 END
 
-
+--------
 CREATE TABLE [GFL_Backup].dbo.DB_Search (
 	[ID]			INT IDENTITY(1,1),
 	[OldName]		NVARCHAR(50),
