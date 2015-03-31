@@ -752,6 +752,150 @@ DEALLOCATE WHNSEc
 
 GO
 
+
+
+--
+
+---- Terminations From Fixes
+
+
+
+
+
+DECLARE @OldOp NVARCHAR(20),
+@NewOp NVARCHAR(20)
+
+
+
+
+SET @OldOp = 'SGE'
+SET @NewOp = 'SGEO'
+
+DECLARE @Restag INT,
+@SD DATETIME,
+@ED DATETIME,
+@MT NVARCHAR(50),
+@TOrg NVARCHAR(100),
+@TDesig NVARCHAR(100),
+@ToSE INT,
+@FOrg NVARCHAR(100),
+@FDesig NVARCHAR(100),
+@FromSE INT,
+@PayID NVARCHAR(20),
+@count INT,
+@i INT
+
+
+
+SET @i = 0
+
+
+SET @count = (SELECT COUNT(*)
+ FROM    [dbo].[Emp Work History] EWH
+    WHERE   (  '20150301' BETWEEN [Start Date] AND [End Date] OR [Start Date] > '20150301' )
+            AND CASE WHEN [Movement Type]  LIKE '%second%'
+                     THEN [From Operation]
+                     ELSE [To Operation]
+                END = 'Southgold'
+            AND [Movement Type]  LIKE '%term%')
+
+
+
+
+DECLARE WHNSEc CURSOR
+FOR
+    SELECT  [Resource Tag] ,
+            [Start Date] ,
+            [End Date] ,
+            [Movement Type] ,
+            [To Org Unit - Gang] ,
+            [To Designation] ,
+            [To Structure Entity] ,
+            [From Org Unit - Gang] ,
+            [From Designation] ,
+            [From Structure Entity] ,
+            [To Payment ID]
+    FROM    [dbo].[Emp Work History] EWH
+    WHERE   (  '20150301' BETWEEN [Start Date] AND [End Date] OR [Start Date] > '20150301' )
+            AND [From Operation]
+                     = 'Southgold'
+            AND [Movement Type]  LIKE '%term%'
+           
+            
+    ORDER BY [Resource Tag] ,
+            [Start Date]
+
+
+
+
+OPEN WHNSEc
+
+FETCH NEXT FROM WHNSEc INTO @Restag ,
+@SD ,
+@ED ,
+@MT ,
+@TOrg ,
+@TDesig ,
+@ToSE ,
+@FOrg ,
+@FDesig ,
+@FromSE ,
+@PayID 
+
+WHILE @@FETCH_STATUS <> -1
+
+BEGIN
+
+DECLARE @NewSE INT
+DECLARE @NewED DATETIME
+
+
+SET @i = @i + 1
+PRINT '---Busy with ' + CAST(@Restag AS NVARCHAR(20)) + ' no ' + CAST(@i AS NVARCHAR(10)) + ' out of ' + CAST(@count AS NVARCHAR(10)) + '----'
+
+
+SET @NewED = (SELECT DATEADD(dd,-1,MIN([Start Date])) FROM [dbo].[Emp Work History] WHERE [Resource Tag] = @Restag AND [Start Date] >= '20150301')
+
+IF @NewED IS NULL
+BEGIN
+SET @NewED = '99991231'
+END
+SET @NewSE = (SELECT TOP 1 [Structure Entity] FROM [dbo].[Organisation Structure] WHERE [Designation] = @TDesig AND [Org Unit - Gang] = REPLACE(@FOrg,@OldOp,@NewOp))
+
+PRINT @NewSE
+
+PRINT @NewED
+
+
+UPDATE [dbo].[Emp Work History] SET [From Structure Entity] = @NewSE WHERE [Resource Tag] =@Restag AND [Start Date] = @SD
+
+
+
+
+
+FETCH NEXT FROM WHNSEc INTO @Restag ,
+@SD ,
+@ED ,
+@MT ,
+@TOrg ,
+@TDesig ,
+@ToSE ,
+@FOrg ,
+@FDesig ,
+@FromSE ,
+@PayID 
+
+END
+
+CLOSE WHNSEc
+DEALLOCATE WHNSEc
+
+
+GO
+
+
+
+
 --- 1 Feb Excptions
 
 
@@ -1212,6 +1356,25 @@ DEALLOCATE WHNSEc
 
 
 
+
+---- Fix weird SG term records
+
+ALTER TABLE [dbo].[Emp Work History] DISABLE TRIGGER Sibanye_Dates
+
+
+UPDATE  [dbo].[Emp Work History]
+SET     [From Structure Entity] = [To Structure Entity] ,
+        [From Operation] = [To Operation] ,
+        [From Org Unit - Gang] = [To Org Unit - Gang] ,
+        [From Designation] = [To Designation]
+WHERE   ( '20150301' BETWEEN [Start Date] AND [End Date]
+          OR [Start Date] > '20150301'
+        )
+        AND [From Operation] = 'Southgold'
+        AND [Movement Type] LIKE '%term%'
+
+
+ALTER TABLE [dbo].[Emp Work History] ENABLE TRIGGER Sibanye_Dates		
 -------------------------------------------------------------------------------------------------------------------------
 go
 
